@@ -46,7 +46,8 @@ fsgo = fsgolib(cookie_file, credentials_file, debug, verify_ssl)
 
 def addon_log(string):
     if debug:
-        xbmc.log('%s: %s' % (logging_prefix, string))
+        msg = '%s: %s' % (logging_prefix, string)
+        xbmc.log(msg=msg, level=xbmc.LOGDEBUG)
 
 
 def play_video(channel_id, airing_id):
@@ -59,10 +60,11 @@ def play_video(channel_id, airing_id):
             playitem.setProperty('IsPlayable', 'true')
             xbmcplugin.setResolvedUrl(_handle, True, listitem=playitem)
     else:
-        show_dialog('ok', language(30020), message=language(30021))
+        dialog('ok', language(30020), message=language(30021))
 
 
 def main_menu():
+    addon_log('Hello World!')  # print add-on version
     items = [language(30023), language(30015), language(30026), language(30036), language(30030)]
     for item in items:
         if item == language(30023):
@@ -142,7 +144,7 @@ def list_events(schedule_type, filter_date=False, search_query=None):
         else:
             message = '%s [B]%s[/B].' % (language(30024), start_time)
             parameters = {
-                'action': 'show_dialog',
+                'action': 'dialog',
                 'dialog_type': 'ok',
                 'heading': language(30025),
                 'message': message
@@ -195,10 +197,10 @@ def show_auth_details():
     entitlements_msg = '[B]%s:[/B] %s' % (language(30032), entitlements)
     expiration_date_msg = '%s [B]%s[/B].' % (language(30033), expiration_date)
     message = '%s[CR]%s[CR][CR]%s' % (tv_provider_msg, entitlements_msg, expiration_date_msg)
-    log_out = show_dialog('yesno', language(30030), message=message, nolabel=language(30027), yeslabel=language(30034))
+    log_out = dialog('yesno', language(30030), message=message, nolabel=language(30027), yeslabel=language(30034))
 
     if log_out:
-        confirm_log_out = show_dialog('yesno', language(30034), message=language(30035))
+        confirm_log_out = dialog('yesno', language(30034), message=language(30035))
         if confirm_log_out:
             fsgo.reset_credentials()
             sys.exit(0)
@@ -228,7 +230,7 @@ def ask_bitrate(bitrates):
     options = []
     for bitrate in bitrates:
         options.append(bitrate + ' Kbps')
-    selected_bitrate = show_dialog('select', language(30016), options=options)
+    selected_bitrate = dialog('select', language(30016), options=options)
     if selected_bitrate is not None:
         return bitrates[selected_bitrate]
     else:
@@ -263,7 +265,7 @@ def select_bitrate(manifest_bitrates=None):
         return ask_bitrate(manifest_bitrates)
 
 
-def show_dialog(dialog_type, heading, message=None, options=None, nolabel=None, yeslabel=None):
+def dialog(dialog_type, heading, message=None, options=None, nolabel=None, yeslabel=None):
     dialog = xbmcgui.Dialog()
     if dialog_type == 'ok':
         dialog.ok(heading, message)
@@ -328,24 +330,24 @@ def add_item(title, parameters, items=False, folder=True, playable=False, set_in
         return items
 
 
-def init(reg_code=None):
+def authenticate(reg_code=None):
     try:
         fsgo.login(reg_code)
-        main_menu()
-        addon_log('Init successful!')
     except fsgo.LoginFailure as error:
         if error.value == 'NoRegCode' or error.value == 'AuthRequired':
             reg_code = fsgo.get_reg_code()
             info_message = '%s[B]%s[/B] [CR][CR]%s' % (language(30010), reg_code, language(30011))
-            ok = show_dialog('yesno', language(30009), message=info_message, nolabel=language(30028), yeslabel=language(30027))
+            ok = dialog('yesno', language(30009), message=info_message, nolabel=language(30028),
+                        yeslabel=language(30027))
             if ok:
-                init(reg_code)
+                authenticate(reg_code)
             else:
                 sys.exit(0)
         elif error.value == 'AuthFailure':
-            try_again = show_dialog('yesno', language(30012), message=language(30013), nolabel=language(30028), yeslabel=language(30029))
+            try_again = dialog('yesno', language(30012), message=language(30013), nolabel=language(30028),
+                               yeslabel=language(30029))
             if try_again:
-                init()
+                authenticate()
             else:
                 sys.exit(0)
 
@@ -366,11 +368,13 @@ def router(paramstring):
             show_auth_details()
         elif params['action'] == 'search':
             search()
-        elif params['action'] == 'show_dialog':
-            show_dialog(params['dialog_type'], params['heading'], params['message'])
+        elif params['action'] == 'dialog':
+            dialog(params['dialog_type'], params['heading'], params['message'])
     else:
-        init()
+        main_menu()
 
 
 if __name__ == '__main__':
+    if not fsgo.valid_session:
+        authenticate()
     router(sys.argv[2][1:])  # trim the leading '?' from the plugin call paramstring
